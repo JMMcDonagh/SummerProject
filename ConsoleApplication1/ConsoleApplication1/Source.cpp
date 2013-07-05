@@ -20,7 +20,7 @@ int main()
 
 	cv::waitKey(0); //wait infinite time for a keypress
 
-	cv::destroyWindow("MyWindow"); //destroy the window with the name, "MyWindow"
+	cv::destroyWindow("Display window"); //destroy the window with the name, "MyWindow"
 
 	return 0;
 }
