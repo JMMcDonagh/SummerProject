@@ -1,0 +1,19 @@
+*.mode1v3
+*.pbxuser
+build/
+obj/
+*.o
+*.exe
+.DS_Store
+Debug/
+Release/
+*.dll
+*.lib
+*.ncb
+*.suo
+*.vcproj.*
+
+#codeblocks files
+*/*/*.layout
+*/*/*.depend
+
