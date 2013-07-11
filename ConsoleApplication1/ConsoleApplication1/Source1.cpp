@@ -111,7 +111,7 @@ cv::Mat FindInverse(const cv::Mat& inMat)
 	float det = 1.0f / Determinant(inMat);
 	
 	cv::Mat retMat = (cv::Mat_<float>(2, 2) <<  inMat.at<float>(1 , 1), -inMat.at<float>(0 , 1),
-											   -inMat.at<float>(1 , 0),  inMat.at<float>(0 , 0));	
+						   -inMat.at<float>(1 , 0),  inMat.at<float>(0 , 0));	
 	
 	return det * retMat;
 }
@@ -140,7 +140,7 @@ cv::Mat ScaleRotationMatrix(float scale, float angle)
 	float sinTheta = sinf(theta);
 
 	return (cv::Mat_<float>(2, 2) << scale * cosTheta, scale * -sinTheta,
-		                             scale * sinTheta, scale *  cosTheta);	
+		                         scale * sinTheta, scale *  cosTheta);	
 }
 
 
