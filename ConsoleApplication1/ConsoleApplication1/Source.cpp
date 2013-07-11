@@ -36,5 +36,10 @@ int main()
 	
 	cv::waitKey(0);
 
+	cv::destroyWindow("myWindow");
+
+	image_gray.release();
+	image.release();	
+
 	return 0;
 }
