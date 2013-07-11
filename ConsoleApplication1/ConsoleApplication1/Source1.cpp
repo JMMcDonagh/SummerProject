@@ -19,12 +19,12 @@ int main()
 
 	cv::Mat imageScaled = cv::Mat::zeros(imageOrginal.rows * scale, imageOrginal.cols * scale, imageOrginal.type());
 
-	for(int i = 1; i < imageScaled.rows; i++)
+	for(int i = 0; i < imageScaled.rows; i++)
 	{
-		for(int j = 1; j < imageScaled.cols; j++)
+		for(int j = 0; j < imageScaled.cols; j++)
 		{
-			int ii = cvRound((i - 1) * (imageOrginal.rows - 1) / (imageScaled.rows - 1) + 1);
-			int jj = cvRound((j - 1) * (imageOrginal.cols - 1) / (imageScaled.cols - 1) + 1);
+			int ii = cvRound(i / scale);
+			int jj = cvRound(j / scale);
 
 			imageScaled.at<unsigned char>(i , j) = imageOrginal.at<unsigned char>(ii , jj);
 		}
