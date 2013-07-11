@@ -6,7 +6,7 @@
 //void xxx(const cv::Mat& in, cv::Mat& out, float scale, float rotation, int trans);
 
 float Determinant(const cv::Mat& inMat);
-cv::Mat FindInverse(const cv::Mat& inMat);
+cv::Mat Inverse(const cv::Mat& inMat);
 
 float Deg2Rad(float angle);
 cv::Mat ScaleRotationMatrix(float scale, float angle);
@@ -54,7 +54,7 @@ int main()
 	////// proof result = identy matrix for both E and F
 	////cv::Mat E = C * D;
 	////cv::Mat F = D * C;
-	//cv::Mat inverseMatrix = FindInverse(C);
+	//cv::Mat inverseMatrix = Inverse(C);
 
 
 
@@ -106,7 +106,7 @@ float Determinant(const cv::Mat& inMat)
 	return (inMat.at<float>(0 , 0) * inMat.at<float>(1 , 1)) - (inMat.at<float>(0 , 1) * inMat.at<float>(1 , 0));	
 }
 
-cv::Mat FindInverse(const cv::Mat& inMat)
+cv::Mat Inverse(const cv::Mat& inMat)
 {
 	float det = 1.0f / Determinant(inMat);
 	
