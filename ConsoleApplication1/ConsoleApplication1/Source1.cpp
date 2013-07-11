@@ -103,17 +103,17 @@ int main()
 
 float Determinant(const cv::Mat& inMat)
 {	
-	return 1.0f / ( (inMat.at<float>(0 , 0) * inMat.at<float>(1 , 1)) - (inMat.at<float>(0 , 1) * inMat.at<float>(1 , 0)) );	
+	return (inMat.at<float>(0 , 0) * inMat.at<float>(1 , 1)) - (inMat.at<float>(0 , 1) * inMat.at<float>(1 , 0));	
 }
 
 cv::Mat FindInverse(const cv::Mat& inMat)
 {
-	float determinant = Determinant(inMat);
+	float det = 1.0f / Determinant(inMat);
 	
 	cv::Mat retMat = (cv::Mat_<float>(2, 2) <<  inMat.at<float>(1 , 1), -inMat.at<float>(0 , 1),
 											   -inMat.at<float>(1 , 0),  inMat.at<float>(0 , 0));	
 	
-	return determinant * retMat;
+	return det * retMat;
 }
 
 //void xxx(const cv::Mat& in, cv::Mat& out, float scale, float angle, float x, float y)
