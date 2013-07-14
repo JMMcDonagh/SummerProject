@@ -5,7 +5,7 @@
 
 cv::Point2f Translation(const cv::Mat& SRMatInv, const cv::Mat& offset, const cv::Mat& position);
 
-float Determinant(const float* ptr);
+float Determinant(const float* const ptr);
 cv::Mat Inverse(const cv::Mat& inMat);
 
 cv::Mat ScaleMatrix(float scale);
@@ -49,12 +49,7 @@ int main()
 			face = faces[i];
 		}
 	}
-	cv::rectangle(image, face, cv::Scalar(255, 255, 0));
-
-	/*for(unsigned int i = 0; i < faces.size(); i++)
-	{
-		cv::rectangle(image, faces[i], cv::Scalar(255, 255, 0));
-	}*/
+	cv::rectangle(image, face, cv::Scalar(255, 255, 0));	
 
 	cv::namedWindow("myWindow", CV_WINDOW_AUTOSIZE);
 	cv::imshow("myWindow", image);
@@ -72,24 +67,26 @@ int main()
 
 	
 
-	float tX = 0.0f;
-	float tY = 0.0f;	
+	float tX = 10.0f;
+	float tY = 40.0f;	
 	cv::Mat offset = (cv::Mat_<float>(2, 1) <<  tX, tY);
 
-	float scale = 1.0f;
+	float scale = 1.3f;
 	cv::Mat scaleMat = ScaleMatrix(scale);
 
 
-	float rotZ = 10.0f;
+	float rotZ = 30.0f;
 	cv::Mat rotationMat = RotationMatrix(rotZ);
 
 	cv::Mat SRMat = scaleMat * rotationMat;
-
-
 	cv::Mat SRMatInv = Inverse(SRMat);
+	
+	uchar* grayImagePtr = grayImage.data;
 
 	for(int y = 0; y < imageResult.rows; y++)
 	{
+		uchar* resultPtr = imageResult.ptr<uchar>(y);		
+
 		for(int x = 0; x < imageResult.cols; x++)
 		{
 			cv::Point2f result = Translation(SRMatInv, offset, (cv::Mat_<float>(2, 1) <<  x, y));
@@ -98,31 +95,28 @@ int main()
 			{
 				continue;
 			}
-			else
-			{				
-				imageResult.at<unsigned char>((int)y , (int)x) = grayImage.at<unsigned char>((int)result.y , (int)result.x);
-			}
+			
+			resultPtr[x] = grayImagePtr[grayImage.step * cvRound(result.y) + cvRound(result.x)];						
 		}
-	}
-
+	}	
 	
 	cv::namedWindow("Translated image", CV_WINDOW_AUTOSIZE );
 	cv::imshow("Translated image", imageResult);
 		
 	cv::waitKey(0);
-
+	
 	return 0;
 }
 
 
-float Determinant(const float* ptr)
+float Determinant(const float* const ptr)
 {
 	return (ptr[0] * ptr[3]) - (ptr[1] * ptr[2]);	
 }
 
 cv::Mat Inverse(const cv::Mat& inMat)
 {
-	const float* ptr = inMat.ptr<float>(0);	
+	const float* const ptr = (float*)inMat.data;
 
 	float determinant = Determinant(ptr);	
 	if(determinant == 0)
@@ -139,7 +133,7 @@ cv::Mat Inverse(const cv::Mat& inMat)
 
 float Deg2Rad(float angle)
 {
-	return angle * (CV_PI / 180);
+	return angle * (float)(CV_PI / 180.0f);
 }
 
 cv::Mat ScaleMatrix(float s)
