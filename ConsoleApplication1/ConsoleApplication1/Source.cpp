@@ -33,7 +33,7 @@ int main()
 	cv::equalizeHist(image_gray, image_gray);	
 	
 	cv::vector<cv::Rect> faces;	
-	face_cascade.detectMultiScale(image_gray, faces, 1.1, 3, CV_HAAR_SCALE_IMAGE, cv::Size(24, 24));//, cv::Size(200, 200));
+	face_cascade.detectMultiScale(image_gray, faces, 1.1, 3, CV_HAAR_SCALE_IMAGE, cv::Size(24, 24));
 
 	if(faces.size() == 0)
 	{
@@ -41,7 +41,7 @@ int main()
 		std::exit(EXIT_FAILURE);
 	}
 
-	cv::Rect face(0,0,0,0);
+	cv::Rect face(0, 0, 0, 0);
 	for(unsigned int i = 0; i < faces.size(); i++)
 	{
 		if(faces[i].height > face.height)
@@ -124,20 +124,16 @@ cv::Mat Inverse(const cv::Mat& inMat)
 {
 	const float* ptr = inMat.ptr<float>(0);	
 
-	float determinant = Determinant(ptr);
-	float det;
+	float determinant = Determinant(ptr);	
 	if(determinant == 0)
 	{
-		det = 1.0f; // dont think this is right
+		return inMat;
 	}
-	else
-	{
-		det = 1.0f / determinant;
-	}	
 
+	determinant = 1.0f / determinant;
 	cv::Mat retMat = (cv::Mat_<float>(2, 2) <<  ptr[3], -ptr[1],
 											   -ptr[2],  ptr[0]);
-	return det * retMat;
+	return determinant * retMat;
 }
 
 
