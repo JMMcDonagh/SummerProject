@@ -1,9 +1,7 @@
 #include <opencv2\imgproc\imgproc.hpp>
-#include <opencv2\objdetect\objdetect.hpp>
 #include <opencv2\highgui\highgui.hpp>
 #include <iostream>
-
-cv::Point2f Translation(const cv::Mat& SRMatInv, const cv::Mat& offset, const cv::Mat& position);
+#include <ctime>
 
 float Determinant(const float* const ptr);
 cv::Mat Inverse(const cv::Mat& inMat);
@@ -11,105 +9,65 @@ cv::Mat Inverse(const cv::Mat& inMat);
 cv::Mat ScaleMatrix(float scale);
 cv::Mat RotationMatrix(float angle);
 float Deg2Rad(float angle);
+cv::Mat CreateInverseScaleRotateMatrix(float scale, float rotZ);
+void ImTrans(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv::Mat& t);
+void ImTrans1(const cv::Mat& src, cv::Mat& dest, const cv::Mat& A, const cv::Mat& t);
+
 
 int main()
 {
-	cv::CascadeClassifier face_cascade;
-	if (!face_cascade.load("C:/opencv/data/haarcascades/haarcascade_frontalface_default.xml"))
-	{
-		std::cout << "Couldn't load face_cascade" << std::endl;
-		std::exit(EXIT_FAILURE);
-	}
-
-	cv::Mat image = cv::imread("Data/face5.jpg", CV_LOAD_IMAGE_COLOR);
-	if(!image.data)
+	cv::Mat grayImage = cv::imread("Data/face5.jpg", CV_LOAD_IMAGE_GRAYSCALE);
+	if(!grayImage.data)
 	{
 		std::cout << "Could not open or find the image"  << std::endl;		
 		std::exit(EXIT_FAILURE);
-    }
-
-	cv::Mat image_gray;
-	cv::cvtColor(image, image_gray, CV_BGR2GRAY);
-	cv::equalizeHist(image_gray, image_gray);	
-	
-	cv::vector<cv::Rect> faces;	
-	face_cascade.detectMultiScale(image_gray, faces, 1.1, 3, CV_HAAR_SCALE_IMAGE, cv::Size(24, 24));
-
-	if(faces.size() == 0)
-	{
-		std::cout << "Could not find any Faces" << std::endl;		
-		std::exit(EXIT_FAILURE);
 	}
 
-	cv::Rect face(0, 0, 0, 0);
-	for(unsigned int i = 0; i < faces.size(); i++)
-	{
-		if(faces[i].height > face.height)
-		{
-			face = faces[i];
-		}
-	}
-	cv::rectangle(image, face, cv::Scalar(255, 255, 0));	
-
-	cv::namedWindow("myWindow", CV_WINDOW_AUTOSIZE);
-	cv::imshow("myWindow", image);
-
 	
-	cv::Mat grayImage = image_gray(face).clone();	
-	cv::Rect grayRect(0, 0, grayImage.cols, grayImage.rows);
-
-
-	cv::namedWindow("grayWindow", CV_WINDOW_AUTOSIZE);
-	cv::imshow("grayWindow", grayImage);
-
-	cv::Mat imageResult = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());
 
 
 	
 
-	float tX = 10.0f;
-	float tY = 40.0f;	
+	float tX = 0.0f;
+	float tY = 0.0f;	
 	cv::Mat offset = (cv::Mat_<float>(2, 1) <<  tX, tY);
 
-	float scale = 1.3f;
-	cv::Mat scaleMat = ScaleMatrix(scale);
+	float scale = 1.0f;
+	float rotZ = 0.0f;
+	cv::Mat SRMatInv = CreateInverseScaleRotateMatrix(scale, rotZ);
 
 
-	float rotZ = 30.0f;
-	cv::Mat rotationMat = RotationMatrix(rotZ);
+	cv::Mat sc = RotationMatrix(rotZ);
+	sc = scale * sc;
 
-	cv::Mat SRMat = scaleMat * rotationMat;
-	cv::Mat SRMatInv = Inverse(SRMat);
-	
-	uchar* grayImagePtr = grayImage.data;
+	clock_t start_time = clock();
+	cv::Mat imageResult = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());
+	ImTrans(grayImage, imageResult, SRMatInv, offset);
+	clock_t finis_time = clock();
+	double result = (finis_time - start_time);
+	std::cout << result << std::endl;
 
-	for(int y = 0; y < imageResult.rows; y++)
-	{
-		uchar* resultPtr = imageResult.ptr<uchar>(y);		
-
-		for(int x = 0; x < imageResult.cols; x++)
-		{
-			cv::Point2f result = Translation(SRMatInv, offset, (cv::Mat_<float>(2, 1) <<  x, y));
-
-			if(!grayRect.contains(result))
-			{
-				continue;
-			}
-			
-			resultPtr[x] = grayImagePtr[grayImage.step * cvRound(result.y) + cvRound(result.x)];						
-		}
-	}	
-	
 	cv::namedWindow("Translated image", CV_WINDOW_AUTOSIZE );
 	cv::imshow("Translated image", imageResult);
-		
+
+
+	clock_t start_time1 = clock();	
+	cv::Mat imResult = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());
+	ImTrans1(grayImage, imResult, sc, offset);	
+	clock_t finis_time1 = clock();
+	double result1 = (finis_time1 - start_time1);
+	std::cout << result1;
+
+	cv::namedWindow("Translated1 image", CV_WINDOW_AUTOSIZE );
+	cv::imshow("Translated1 image", imResult);
+
 	cv::waitKey(0);
 	
 	return 0;
 }
 
 
-float Determinant(const float* const ptr)
+inline float Determinant(const float* const ptr)
 {
 	return (ptr[0] * ptr[3]) - (ptr[1] * ptr[2]);	
 }
@@ -131,12 +89,12 @@ cv::Mat Inverse(const cv::Mat& inMat)
 }
 
 
-float Deg2Rad(float angle)
+inline float Deg2Rad(float angle)
 {
 	return angle * (float)(CV_PI / 180.0f);
 }
 
-cv::Mat ScaleMatrix(float s)
+inline cv::Mat ScaleMatrix(float s)
 {
 	return (cv::Mat_<float>(2, 2) << s, 0,
 									 0, s);
@@ -152,9 +110,51 @@ cv::Mat RotationMatrix(float angle)
 		                              sinTheta,  cosTheta);
 }
 
-cv::Point2f Translation(const cv::Mat& SRMatInv, const cv::Mat& offset, const cv::Mat& position)
-{
-	cv::Mat resultMat = SRMatInv * (position - offset);
+cv::Mat CreateInverseScaleRotateMatrix(float scale, float rotZ)
+{	
+	return Inverse(ScaleMatrix(scale) * RotationMatrix(rotZ));
+}
 
-	return cv::Point2f(resultMat);	
+cv::Mat CreateScaleRotateMatrix(float scale, float rotZ)
+{	
+	return ScaleMatrix(scale) * RotationMatrix(rotZ);
+}
+
+
+
+void ImTrans(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv::Mat& t)
+{
+	cv::Rect srcRect(0, 0, src.cols, src.rows);
+	
+	const uchar* const srcPtr = src.data;
+
+	for(int y = 0; y < dest.rows; ++y)
+	{
+		uchar* const destPtr = dest.ptr<uchar>(y);		
+
+		for(int x = 0; x < dest.cols; ++x)
+		{
+			cv::Mat resultMat = invA * ( (cv::Mat_<float>(2, 1) <<  x, y) - t );
+
+			cv::Point2i result(resultMat);			
+
+			if(!srcRect.contains(result))
+			{
+				continue;
+			}
+			
+			destPtr[x] = srcPtr[src.step * result.y + result.x];						
+		}
+	}
+}
+
+void ImTrans1(const cv::Mat& src, cv::Mat& dest, const cv::Mat& A, const cv::Mat& t)
+{
+	cv::Mat_<float> m(2, 3);
+
+	A.col(0).copyTo(m.col(0));
+	A.col(1).copyTo(m.col(1));
+	t.col(0).copyTo(m.col(2));
+
+	cv::warpAffine(src, dest, m, dest.size(), cv::INTER_NEAREST);
 }
