@@ -13,6 +13,9 @@ cv::Mat CreateInverseScaleRotateMatrix(float scale, float rotZ);
 void ImTrans(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv::Mat& t);
 void ImTrans1(const cv::Mat& src, cv::Mat& dest, const cv::Mat& A, const cv::Mat& t);
 
+cv::Mat ScaleMatrixH(float s);
+cv::Mat RotationMatrixH(float angle);
+cv::Mat TranslationMatrixH(float x, float y);
 
 int main()
 {
@@ -24,21 +27,16 @@ int main()
 	}
 
 	
-
-
-	
-
-	float tX = 0.0f;
-	float tY = 0.0f;	
+	float tX = 10.0f;
+	float tY = 30.0f;	
 	cv::Mat offset = (cv::Mat_<float>(2, 1) <<  tX, tY);
 
-	float scale = 1.0f;
-	float rotZ = 0.0f;
+	float scale = 0.5f;
+	float rotZ = 10.0f;
+
+
+
 	cv::Mat SRMatInv = CreateInverseScaleRotateMatrix(scale, rotZ);
-
-
-	cv::Mat sc = RotationMatrix(rotZ);
-	sc = scale * sc;
 
 	clock_t start_time = clock();
 	cv::Mat imageResult = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());
@@ -47,19 +45,61 @@ int main()
 	double result = (finis_time - start_time);
 	std::cout << result << std::endl;
 
-	cv::namedWindow("Translated image", CV_WINDOW_AUTOSIZE );
-	cv::imshow("Translated image", imageResult);
 
+
+
+	cv::Mat sc = RotationMatrix(rotZ);
+	sc = scale * sc;
 
 	clock_t start_time1 = clock();	
 	cv::Mat imResult = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());
 	ImTrans1(grayImage, imResult, sc, offset);	
 	clock_t finis_time1 = clock();
 	double result1 = (finis_time1 - start_time1);
-	std::cout << result1;
+	std::cout << result1 << std::endl;
+
+
+
+
+	cv::Point2f srcTri[] = { cv::Point2f(0, 0), cv::Point2f(grayImage.cols - 1, 0), cv::Point2f(0, grayImage.rows - 1) };
+	cv::Point2f destTri[3];
+
+	cv::Mat tMat = TranslationMatrixH(tX, tY);
+	cv::Mat rMat = RotationMatrixH(rotZ);
+	cv::Mat sMat = ScaleMatrixH(scale);
+
+	cv::Mat srtMat = tMat * rMat * sMat;
+
+	for(int i = 0; i < 3; i++)
+	{
+		cv::Point3f pp(srcTri[i].x, srcTri[i].y, 1.0f);
+		cv::Mat fff(pp);
+		cv::Mat oo = srtMat * fff;
+		cv::Point3f ee(oo);
+		destTri[i].x = ee.x;
+		destTri[i].y = ee.y;
+	}
+	
+	
+	clock_t start_time2 = clock();
+	cv::Mat zzz = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());	
+	cv::Mat ty = cv::getAffineTransform(srcTri, destTri);
+	cv::warpAffine(grayImage, zzz, ty, zzz.size(), cv::INTER_NEAREST);
+	clock_t finis_time2 = clock();
+	double result2 = (finis_time2 - start_time2);
+	std::cout << result2 << std::endl;
+
+
+
+
+	cv::namedWindow("Translated image", CV_WINDOW_AUTOSIZE );
+	cv::imshow("Translated image", imageResult);
 
 	cv::namedWindow("Translated1 image", CV_WINDOW_AUTOSIZE );
-	cv::imshow("Translated1 image", imResult);
+	cv::imshow("Translated1 image", imResult);	
+	
+	cv::namedWindow("Translated2 image", CV_WINDOW_AUTOSIZE );
+	cv::imshow("Translated2 image", zzz);
 
 	cv::waitKey(0);
 	
@@ -157,4 +197,34 @@ void ImTrans1(const cv::Mat& src, cv::Mat& dest, const cv::Mat& A, const cv::Mat
 	t.col(0).copyTo(m.col(2));
 
 	cv::warpAffine(src, dest, m, dest.size(), cv::INTER_NEAREST);
+}
+
+
+
+
+
+cv::Mat ScaleMatrixH(float s)
+{
+	return (cv::Mat_<float>(3, 3) << s, 0, 0,
+									 0, s, 0,
+									 0, 0, 1);
+}
+
+cv::Mat RotationMatrixH(float angle)
+{
+	float theta = Deg2Rad(angle);
+	float cosTheta = cosf(theta);
+	float sinTheta = sinf(theta);
+
+	return (cv::Mat_<float>(3, 3) <<  cosTheta, -sinTheta, 0,
+									  sinTheta,  cosTheta, 0,
+									  0,		 0,		   1);
+}
+
+cv::Mat TranslationMatrixH(float x, float y)
+{
+	return (cv::Mat_<float>(3, 3) << 1, 0, x,
+									 0, 1, y,
+									 0, 0, 1);
+
 }
