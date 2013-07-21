@@ -2,6 +2,7 @@
 #include <opencv2\highgui\highgui.hpp>
 #include <iostream>
 #include <ctime>
+#include <emmintrin.h>
 
 float Determinant(const float* const ptr);
 cv::Mat Inverse(const cv::Mat& inMat);
@@ -10,16 +11,21 @@ cv::Mat ScaleMatrix(float scale);
 cv::Mat RotationMatrix(float angle);
 float Deg2Rad(float angle);
 cv::Mat CreateInverseScaleRotateMatrix(float scale, float rotZ);
-void ImTrans(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv::Mat& t);
-void ImTrans1(const cv::Mat& src, cv::Mat& dest, const cv::Mat& A, const cv::Mat& t);
+
+
+void ImTransCV(const cv::Mat& src, cv::Mat& dest, const cv::Mat& mat);
+void ImTransSSE(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv::Mat& t);
+
 
 cv::Mat ScaleMatrixH(float s);
 cv::Mat RotationMatrixH(float angle);
 cv::Mat TranslationMatrixH(float x, float y);
 
+void DrawLine(cv::Mat img, cv::Point start, cv::Point end);
+
 int main()
 {
-	cv::Mat grayImage = cv::imread("Data/face5.jpg", CV_LOAD_IMAGE_GRAYSCALE);
+	cv::Mat grayImage = cv::imread("Data/face2.jpg", CV_LOAD_IMAGE_GRAYSCALE);
 	if(!grayImage.data)
 	{
 		std::cout << "Could not open or find the image"  << std::endl;		
@@ -27,39 +33,18 @@ int main()
 	}
 
 	
-	float tX = 10.0f;
-	float tY = 30.0f;	
-	cv::Mat offset = (cv::Mat_<float>(2, 1) <<  tX, tY);
+	int tX = 0;
+	int tY = 0;	
+	cv::Mat offset = (cv::Mat_<int>(2, 1) <<  tX, tY);
 
-	float scale = 0.5f;
-	float rotZ = 10.0f;
-
-
+	float scale = 1.0f;
+	float rotZ = 0.0f;
+	
 
 	cv::Mat SRMatInv = CreateInverseScaleRotateMatrix(scale, rotZ);
 
-	clock_t start_time = clock();
-	cv::Mat imageResult = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());
-	ImTrans(grayImage, imageResult, SRMatInv, offset);
-	clock_t finis_time = clock();
-	double result = (finis_time - start_time);
-	std::cout << result << std::endl;
-
-
-
-
-	cv::Mat sc = RotationMatrix(rotZ);
-	sc = scale * sc;
-
-	clock_t start_time1 = clock();	
-	cv::Mat imResult = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());
-	ImTrans1(grayImage, imResult, sc, offset);	
-	clock_t finis_time1 = clock();
-	double result1 = (finis_time1 - start_time1);
-	std::cout << result1 << std::endl;
-
-
-
+	clock_t timeC;	
+	int loops = 100;
 
 	cv::Point2f srcTri[] = { cv::Point2f(0, 0), cv::Point2f(grayImage.cols - 1, 0), cv::Point2f(0, grayImage.rows - 1) };
 	cv::Point2f destTri[3];
@@ -79,31 +64,51 @@ int main()
 		destTri[i].x = ee.x;
 		destTri[i].y = ee.y;
 	}
+
+	
+	cv::Mat destCV = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());	
+	cv::Mat affineTransform = cv::getAffineTransform(srcTri, destTri);
+	timeC = clock();
+	for(int y = 0; y < loops; ++y)
+	{
+		ImTransCV(grayImage, destCV, affineTransform);	
+	}	
+	timeC = clock() - timeC;
+	std::cout << "ImTransCV time to do " << loops << " loops: " << (float)timeC / CLOCKS_PER_SEC << " seconds." << std::endl;
+
+	
+
+	cv::Mat destSSE = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());
+	timeC = clock();
+	for(int y = 0; y < loops; ++y)
+	{
+		ImTransSSE(grayImage, destSSE, SRMatInv, offset);
+	}
+	timeC = clock() - timeC;
+	std::cout << "ImTransSSE time to do " << loops << " loops: " << (float)timeC / CLOCKS_PER_SEC << " seconds." << std::endl;
+
+
+	DrawLine(destCV, destTri[0], destTri[1]);
+	DrawLine(destCV, destTri[0], destTri[2]);
+	DrawLine(destCV, destTri[1], destTri[2]);
+
+	DrawLine(destCV, srcTri[0], srcTri[1]);
+	DrawLine(destCV, srcTri[0], srcTri[2]);
+	DrawLine(destCV, srcTri[1], srcTri[2]);
+
 	
 	
-	clock_t start_time2 = clock();
-	cv::Mat zzz = cv::Mat::zeros(grayImage.rows, grayImage.cols, grayImage.type());	
-	cv::Mat ty = cv::getAffineTransform(srcTri, destTri);
-	cv::warpAffine(grayImage, zzz, ty, zzz.size(), cv::INTER_NEAREST);
-	clock_t finis_time2 = clock();
-	double result2 = (finis_time2 - start_time2);
-	std::cout << result2 << std::endl;
-
-
-
-
-	cv::namedWindow("Translated image", CV_WINDOW_AUTOSIZE );
-	cv::imshow("Translated image", imageResult);
-
-	cv::namedWindow("Translated1 image", CV_WINDOW_AUTOSIZE );
-	cv::imshow("Translated1 image", imResult);	
+	cv::namedWindow("ImTransCV image", CV_WINDOW_AUTOSIZE );
+	cv::imshow("ImTransCV image", destCV);
 	
-	cv::namedWindow("Translated2 image", CV_WINDOW_AUTOSIZE );
-	cv::imshow("Translated2 image", zzz);
+
+	cv::namedWindow("ImTransSSE image", CV_WINDOW_AUTOSIZE );
+	cv::imshow("ImTransSSE image", destSSE);
+
 
 	cv::waitKey(0);
 	
-	return 0;
+   	return 0;
 }
 
 
@@ -152,55 +157,69 @@ cv::Mat RotationMatrix(float angle)
 
 cv::Mat CreateInverseScaleRotateMatrix(float scale, float rotZ)
 {	
-	return Inverse(ScaleMatrix(scale) * RotationMatrix(rotZ));
-}
-
-cv::Mat CreateScaleRotateMatrix(float scale, float rotZ)
-{	
-	return ScaleMatrix(scale) * RotationMatrix(rotZ);
+	return Inverse(ScaleMatrix(scale) * RotationMatrix(rotZ));	
 }
 
 
-
-void ImTrans(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv::Mat& t)
+void ImTransCV(const cv::Mat& src, cv::Mat& dest, const cv::Mat& mat)
 {
-	cv::Rect srcRect(0, 0, src.cols, src.rows);
-	
+	cv::warpAffine(src, dest, mat, dest.size(), cv::INTER_NEAREST);
+}
+
+void ImTransSSE(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv::Mat& t)
+{
+	const float* const intAPtr = (float*)invA.data;
+	const int* const tPtr = (int*)t.data;		
+
 	const uchar* const srcPtr = src.data;
+	uchar* destPtr;	
+	
+	unsigned int rows = dest.rows;
+	unsigned int cols = dest.cols;
+	unsigned int step = src.step;	
 
-	for(int y = 0; y < dest.rows; ++y)
+	
+	__m128 a = _mm_set_ps1(intAPtr[0]);
+	__m128 b = _mm_set_ps1(intAPtr[1]);
+	__m128 c = _mm_set_ps1(intAPtr[2]);
+	__m128 d = _mm_set_ps1(intAPtr[3]);
+	__m128 tX = _mm_set_ps1(tPtr[0]);
+	__m128 tY = _mm_set_ps1(tPtr[1]);
+
+	__m128 yyyy, tyy, aaa, bbb, xxxx, txx, X, Y;
+	__m128i Xx, Yy;
+
+	for(int y = 0; y < rows; ++y)
 	{
-		uchar* const destPtr = dest.ptr<uchar>(y);		
+		destPtr = dest.ptr<uchar>(y);
 
-		for(int x = 0; x < dest.cols; ++x)
+		yyyy = _mm_set_ps1(y);
+		
+		tyy = _mm_sub_ps(yyyy, tY);
+		aaa = _mm_mul_ps(b, tyy);
+		bbb = _mm_mul_ps(d, tyy);	
+
+		int x;
+		for(x = 0; x < cols; x += 4)
 		{
-			cv::Mat resultMat = invA * ( (cv::Mat_<float>(2, 1) <<  x, y) - t );
-
-			cv::Point2i result(resultMat);			
-
-			if(!srcRect.contains(result))
-			{
-				continue;
-			}
+			xxxx = _mm_set_ps(x+3, x+2, x+1, x);
+			txx = _mm_sub_ps(xxxx, tX);
 			
-			destPtr[x] = srcPtr[src.step * result.y + result.x];						
-		}
+			X = _mm_add_ps(_mm_mul_ps(a, txx), aaa);
+			Y = _mm_add_ps(_mm_mul_ps(c, txx), bbb);
+			Xx = _mm_cvttps_epi32(X);
+			Yy = _mm_cvttps_epi32(Y);
+			
+			for(unsigned int i = 0; i < 4; i++)
+			{
+				if((Xx.m128i_u32[i] >= 0 && Xx.m128i_u32[i] < cols) && (Yy.m128i_u32[i] >= 0 && Yy.m128i_u32[i] < rows))
+				{
+					destPtr[x+i] = srcPtr[step * Yy.m128i_u32[i] + Xx.m128i_u32[i]];
+				}
+			}
+		}		
 	}
 }
-
-void ImTrans1(const cv::Mat& src, cv::Mat& dest, const cv::Mat& A, const cv::Mat& t)
-{
-	cv::Mat_<float> m(2, 3);
-
-	A.col(0).copyTo(m.col(0));
-	A.col(1).copyTo(m.col(1));
-	t.col(0).copyTo(m.col(2));
-
-	cv::warpAffine(src, dest, m, dest.size(), cv::INTER_NEAREST);
-}
-
-
-
 
 
 cv::Mat ScaleMatrixH(float s)
@@ -227,4 +246,18 @@ cv::Mat TranslationMatrixH(float x, float y)
 									 0, 1, y,
 									 0, 0, 1);
 
+}
+
+
+void DrawLine(cv::Mat img, cv::Point start, cv::Point end)
+{
+	int thickness = 2;
+	int lineType = 8;
+
+	line(img,
+		 start,
+		 end,
+		 cv::Scalar(255),
+		 thickness,
+		 lineType);
 }
