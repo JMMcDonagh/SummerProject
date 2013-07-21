@@ -25,7 +25,7 @@ void DrawLine(cv::Mat img, cv::Point start, cv::Point end);
 
 int main()
 {
-	cv::Mat grayImage = cv::imread("Data/face5.jpg", CV_LOAD_IMAGE_GRAYSCALE);
+	cv::Mat grayImage = cv::imread("Data/face3.jpg", CV_LOAD_IMAGE_GRAYSCALE);
 	if(!grayImage.data)
 	{
 		std::cout << "Could not open or find the image"  << std::endl;		
@@ -33,8 +33,8 @@ int main()
 	}
 
 	
-	int tX = 100;
-	int tY = 100;	
+	int tX = 80;
+	int tY = 20;	
 	cv::Mat offset = (cv::Mat_<int>(2, 1) <<  tX, tY);
 
 	float scale = 1.0f;
@@ -174,11 +174,12 @@ void ImTransSSE(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv
 	const uchar* const srcPtr = src.data;
 	uchar* destPtr;	
 	
-	unsigned int rows = dest.rows;
-	unsigned int cols = dest.cols;
-	unsigned int step = src.step;	
+	int rows = dest.rows;
+	int cols = dest.cols;
+	int step = src.step;	
 
 	int mod = cols % 4;
+	int alignedCols = cols - 4;
 
 	__m128 a = _mm_set_ps1(intAPtr[0]);
 	__m128 b = _mm_set_ps1(intAPtr[1]);
@@ -189,7 +190,7 @@ void ImTransSSE(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv
 
 	__m128 yyyy, tyy, aaa, bbb, xxxx, txx, X, Y;
 	__m128i Xx, Yy;	
-	
+
 	for(int y = 0; y < rows; ++y)
 	{
 		destPtr = dest.ptr<uchar>(y);
@@ -201,7 +202,7 @@ void ImTransSSE(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv
 		bbb = _mm_mul_ps(d, tyy);	
 
 		int x;
-		for(x = 0; x <= cols-4; x += 4)
+		for(x = 0; x <= alignedCols; x += 4)
 		{
 			xxxx = _mm_set_ps(x+3, x+2, x+1, x);
 			txx = _mm_sub_ps(xxxx, tX);
@@ -213,9 +214,9 @@ void ImTransSSE(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv
 			
 			for(int i = 0; i < 4; i++)
 			{
-				if((Xx.m128i_i32[i] >= 0 && Xx.m128i_i32[i] < cols) && (Yy.m128i_i32[i] >= 0 && Yy.m128i_i32[i] < rows))
+				if(Xx.m128i_u32[i] < cols && Yy.m128i_u32[i] < rows)
 				{
-					destPtr[x+i] = srcPtr[step * Yy.m128i_i32[i] + Xx.m128i_i32[i]];
+					destPtr[x+i] = srcPtr[step * Yy.m128i_u32[i] + Xx.m128i_u32[i]];
 				}
 			}
 		}
@@ -229,12 +230,12 @@ void ImTransSSE(const cv::Mat& src, cv::Mat& dest, const cv::Mat& invA, const cv
 			Y = _mm_add_ps(_mm_mul_ps(c, txx), bbb);
 			Xx = _mm_cvttps_epi32(X);
 			Yy = _mm_cvttps_epi32(Y);
-
+			
 			for(int i = 0; i < mod; i++)
 			{
-				if((Xx.m128i_i32[i] >= 0 && Xx.m128i_i32[i] < cols) && (Yy.m128i_i32[i] >= 0 && Yy.m128i_i32[i] < rows))
+				if(Xx.m128i_u32[i] < cols && Yy.m128i_u32[i] < rows)
 				{
-					destPtr[x+i] = srcPtr[step * Yy.m128i_i32[i] + Xx.m128i_i32[i]];
+					destPtr[x+i] = srcPtr[step * Yy.m128i_u32[i] + Xx.m128i_u32[i]];
 				}
 			}
 		}
