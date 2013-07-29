@@ -33,10 +33,10 @@ struct Index
 void LoadShape(const std::string& fileName, Vec2i* out);
 void LoadShapef(const std::string& fileName, Vec2f* out);
 void LoadIndices(const std::string& fileName, Index* out);
-void LoadTextureBase(const std::string& fileName, std::vector<Vec2i> alist[], const Vec2i& resolution);
+void LoadTextureBase(const std::string& fileName, const Vec2i& resolution, std::vector<Vec2i> trianglePointsList[]);
 
-void WarpImage(const Vec2i* const meanPoints, const Vec2i* const currentPoints, const Index* const indices, const std::vector<Vec2i>* const alist, const cv::Mat& inputImage, cv::Mat& outImage);
-void WarpImagef(const Vec2f* const meanPoints, const Vec2f* const currentPoints, const Index* const indices, const std::vector<Vec2i>* const trianglePointsList, const cv::Mat& inputImage, cv::Mat& outImage);
+void WarpImage(const Vec2i* const meanPoints, const Vec2i* const currentPoints, const Index* const indices, int triCount, const std::vector<Vec2i>* const alist, const cv::Mat& inputImage, cv::Mat& outImage);
+void WarpImagef(const Vec2f* const meanPoints, const Vec2f* const currentPoints, const Index* const indices, int triCount, const std::vector<Vec2i>* const trianglePointsList, const cv::Mat& inputImage, cv::Mat& outImage);
 
 int main()
 {
@@ -55,11 +55,10 @@ int main()
 	{
 		std::cerr << "Could not open or find the image"  << std::endl;		
 		std::exit(EXIT_FAILURE);
-	}
-
+	}	
 
 	std::vector<Vec2i> trianglePointsList[triangleCount];
-	LoadTextureBase(textureBase, trianglePointsList, resolution);
+	LoadTextureBase(textureBase, resolution, trianglePointsList);
 
 	Vec2i* meanPoints = new Vec2i[trianglePoints];	
 	LoadShape(meanShape, meanPoints);
@@ -83,23 +82,23 @@ int main()
 	LoadIndices(triangles, indices);
 
 
-	cv::Mat outImage = cv::Mat::zeros(167, 169, inputImage.type());
+	cv::Mat outImage = cv::Mat::zeros(resolution.y, resolution.x, inputImage.type());
 
 	clock_t timeC;
 	int loops = 100;
 	timeC = clock();	
 	for(int y = 0; y < loops; ++y)
 	{
-		WarpImage(meanPoints, currentPoints, indices, trianglePointsList, inputImage, outImage);
+		WarpImage(meanPoints, currentPoints, indices, triangleCount, trianglePointsList, inputImage, outImage);
 	}	
 	timeC = clock() - timeC;
 	std::cout << "WarpImage time to do " << loops << " loops: " << timeC * 1000 / CLOCKS_PER_SEC << " milliseconds." << std::endl;
 
-	cv::Mat outImagef = cv::Mat::zeros(167, 169, inputImage.type());
+	cv::Mat outImagef = cv::Mat::zeros(resolution.y, resolution.x, inputImage.type());
 	timeC = clock();	
 	for(int y = 0; y < loops; ++y)
 	{
-		WarpImagef(meanPointsf, currentPointsf, indices, trianglePointsList, inputImage, outImagef);
+		WarpImagef(meanPointsf, currentPointsf, indices, triangleCount, trianglePointsList, inputImage, outImagef);
 	}	
 	timeC = clock() - timeC;
 	std::cout << "WarpImagef time to do " << loops << " loops: " << timeC * 1000 / CLOCKS_PER_SEC << " milliseconds." << std::endl;
@@ -152,7 +151,7 @@ void LoadIndices(const std::string& fileName, Index* out)
 	fin.close();
 }
 
-void LoadTextureBase(const std::string& fileName, std::vector<Vec2i> trianglePointsList[], const Vec2i& resolution)
+void LoadTextureBase(const std::string& fileName, const Vec2i& resolution, std::vector<Vec2i> trianglePointsList[])
 {
 	std::ifstream fin(fileName);
 	if(!fin.is_open())
@@ -183,6 +182,7 @@ void LoadTextureBase(const std::string& fileName, std::vector<Vec2i> trianglePoi
 void WarpImage(const Vec2i* const meanPoints,
 	           const Vec2i* const currentPoints,
 			   const Index* const indices,
+			   int triCount,
 			   const std::vector<Vec2i>* const trianglePointsList,
 			   const cv::Mat& inputImage,
 			   cv::Mat& outImage)
@@ -195,8 +195,9 @@ void WarpImage(const Vec2i* const meanPoints,
 	Vec2i currentPos;
 	float X, Y;	
 	float transMatrix[6];
+	float inverseMatrix[9];
 
-	int triangleCount = 111;
+	int triangleCount = triCount;
 	int inStep = inputImage.step;
 	int outStep = outImage.step;
 	
@@ -216,25 +217,25 @@ void WarpImage(const Vec2i* const meanPoints,
 		int determinant = (dest[0].x * (dest[1].y - dest[2].y)) - (dest[1].x * (dest[0].y - dest[2].y)) + (dest[2].x * (dest[0].y - dest[1].y));
 		float invDet = 1.0f / determinant;
 
-		float m00 =  (dest[1].y - dest[2].y) * invDet;
-		float m01 = -(dest[1].x - dest[2].x) * invDet;
-		float m02 =  (dest[1].x * dest[2].y - dest[2].x * dest[1].y) * invDet;
+		inverseMatrix[0] =  (dest[1].y - dest[2].y) * invDet;
+		inverseMatrix[1] = -(dest[1].x - dest[2].x) * invDet;
+		inverseMatrix[2] =  (dest[1].x * dest[2].y - dest[2].x * dest[1].y) * invDet;
 
-		float m10 = -(dest[0].y - dest[2].y) * invDet;
-		float m11 =  (dest[0].x - dest[2].x) * invDet;
-		float m12 = -(dest[0].x * dest[2].y - dest[0].y * dest[2].x) * invDet;
+		inverseMatrix[3] = -(dest[0].y - dest[2].y) * invDet;
+		inverseMatrix[4] =  (dest[0].x - dest[2].x) * invDet;
+		inverseMatrix[5] = -(dest[0].x * dest[2].y - dest[0].y * dest[2].x) * invDet;
 
-		float m20 =  (dest[0].y - dest[1].y) * invDet;
-		float m21 = -(dest[0].x - dest[1].x) * invDet;
-		float m22 =  (dest[0].x * dest[1].y - dest[0].y * dest[1].x) * invDet;
+		inverseMatrix[6] =  (dest[0].y - dest[1].y) * invDet;
+		inverseMatrix[7] = -(dest[0].x - dest[1].x) * invDet;
+		inverseMatrix[8] =  (dest[0].x * dest[1].y - dest[0].y * dest[1].x) * invDet;
 
 
-		transMatrix[0] = src[0].x * m00 + src[1].x * m10 + src[2].x * m20;
-		transMatrix[1] = src[0].x * m01 + src[1].x * m11 + src[2].x * m21;
-		transMatrix[2] = src[0].x * m02 + src[1].x * m12 + src[2].x * m22;
-		transMatrix[3] = src[0].y * m00 + src[1].y * m10 + src[2].y * m20;
-		transMatrix[4] = src[0].y * m01 + src[1].y * m11 + src[2].y * m21;
-		transMatrix[5] = src[0].y * m02 + src[1].y * m12 + src[2].y * m22;
+		transMatrix[0] = src[0].x * inverseMatrix[0] + src[1].x * inverseMatrix[3] + src[2].x * inverseMatrix[6];
+		transMatrix[1] = src[0].x * inverseMatrix[1] + src[1].x * inverseMatrix[4] + src[2].x * inverseMatrix[7];
+		transMatrix[2] = src[0].x * inverseMatrix[2] + src[1].x * inverseMatrix[5] + src[2].x * inverseMatrix[8];
+		transMatrix[3] = src[0].y * inverseMatrix[0] + src[1].y * inverseMatrix[3] + src[2].y * inverseMatrix[6];
+		transMatrix[4] = src[0].y * inverseMatrix[1] + src[1].y * inverseMatrix[4] + src[2].y * inverseMatrix[7];
+		transMatrix[5] = src[0].y * inverseMatrix[2] + src[1].y * inverseMatrix[5] + src[2].y * inverseMatrix[8];
 
 
 		int count = trianglePointsList[currentTriangle].size();
@@ -278,6 +279,7 @@ void LoadShapef(const std::string& fileName, Vec2f* out)
 void WarpImagef(const Vec2f* const meanPoints,
 	            const Vec2f* const currentPoints,
 				const Index* const indices,
+				int triCount,
 				const std::vector<Vec2i>* const trianglePointsList,
 				const cv::Mat& inputImage,
 				cv::Mat& outImage)
@@ -290,8 +292,9 @@ void WarpImagef(const Vec2f* const meanPoints,
 	Vec2i currentPos;
 	float X, Y;	
 	float transMatrix[6];
+	float inverseMatrix[9];
 
-	int triangleCount = 111;
+	int triangleCount = triCount;
 	int inStep = inputImage.step;
 	int outStep = outImage.step;
 
@@ -311,25 +314,25 @@ void WarpImagef(const Vec2f* const meanPoints,
 		float determinant = (dest[0].x * (dest[1].y - dest[2].y)) - (dest[1].x * (dest[0].y - dest[2].y)) + (dest[2].x * (dest[0].y - dest[1].y));
 		float invDet = 1.0f / determinant;
 
-		float m00 =  (dest[1].y - dest[2].y) * invDet;
-		float m01 = -(dest[1].x - dest[2].x) * invDet;
-		float m02 =  (dest[1].x * dest[2].y - dest[2].x * dest[1].y) * invDet;
+		inverseMatrix[0] =  (dest[1].y - dest[2].y) * invDet;
+		inverseMatrix[1] = -(dest[1].x - dest[2].x) * invDet;
+		inverseMatrix[2] =  (dest[1].x * dest[2].y - dest[2].x * dest[1].y) * invDet;
 
-		float m10 = -(dest[0].y - dest[2].y) * invDet;
-		float m11 =  (dest[0].x - dest[2].x) * invDet;
-		float m12 = -(dest[0].x * dest[2].y - dest[0].y * dest[2].x) * invDet;
+		inverseMatrix[3] = -(dest[0].y - dest[2].y) * invDet;
+		inverseMatrix[4] =  (dest[0].x - dest[2].x) * invDet;
+		inverseMatrix[5] = -(dest[0].x * dest[2].y - dest[0].y * dest[2].x) * invDet;
 
-		float m20 =  (dest[0].y - dest[1].y) * invDet;
-		float m21 = -(dest[0].x - dest[1].x) * invDet;
-		float m22 =  (dest[0].x * dest[1].y - dest[0].y * dest[1].x) * invDet;
+		inverseMatrix[6] =  (dest[0].y - dest[1].y) * invDet;
+		inverseMatrix[7] = -(dest[0].x - dest[1].x) * invDet;
+		inverseMatrix[8] =  (dest[0].x * dest[1].y - dest[0].y * dest[1].x) * invDet;
 
 
-		transMatrix[0] = src[0].x * m00 + src[1].x * m10 + src[2].x * m20;
-		transMatrix[1] = src[0].x * m01 + src[1].x * m11 + src[2].x * m21;
-		transMatrix[2] = src[0].x * m02 + src[1].x * m12 + src[2].x * m22;
-		transMatrix[3] = src[0].y * m00 + src[1].y * m10 + src[2].y * m20;
-		transMatrix[4] = src[0].y * m01 + src[1].y * m11 + src[2].y * m21;
-		transMatrix[5] = src[0].y * m02 + src[1].y * m12 + src[2].y * m22;
+		transMatrix[0] = src[0].x * inverseMatrix[0] + src[1].x * inverseMatrix[3] + src[2].x * inverseMatrix[6];
+		transMatrix[1] = src[0].x * inverseMatrix[1] + src[1].x * inverseMatrix[4] + src[2].x * inverseMatrix[7];
+		transMatrix[2] = src[0].x * inverseMatrix[2] + src[1].x * inverseMatrix[5] + src[2].x * inverseMatrix[8];
+		transMatrix[3] = src[0].y * inverseMatrix[0] + src[1].y * inverseMatrix[3] + src[2].y * inverseMatrix[6];
+		transMatrix[4] = src[0].y * inverseMatrix[1] + src[1].y * inverseMatrix[4] + src[2].y * inverseMatrix[7];
+		transMatrix[5] = src[0].y * inverseMatrix[2] + src[1].y * inverseMatrix[5] + src[2].y * inverseMatrix[8];
 
 
 		int count = trianglePointsList[currentTriangle].size();
